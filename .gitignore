@@ -1,0 +1,49 @@
+# Python Virtual Environments
+env/
+env311/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.npm/
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Model files (large binaries - add back if needed with Git LFS)
+*.h5
+*.pkl
+*.joblib
+*.model
+*.pt
+*.pth
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE / OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Mindsprint has its own .git - treat as submodule or ignore nested .git
+Mindsprint/.git/
