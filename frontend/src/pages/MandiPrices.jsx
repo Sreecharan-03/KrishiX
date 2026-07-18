@@ -26,17 +26,18 @@ export default function MandiPrices() {
   const fetchPrices = useCallback(async () => {
     setLoading(true); setError(''); setData([])
     try {
-      const res = await fetch("https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=579b464db66ec23bdd00000159ddd2c3a988470b5aa5c69f8e448614&format=json&limit=1000")
+      const params = new URLSearchParams({
+        'api-key': '579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b',
+        'format': 'json',
+        'limit': '1000',
+        'filters[state]': state,
+        'filters[commodity]': commodity,
+      })
+      const res = await fetch(`https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?${params}`)
       const d = await res.json()
       if (!d.records) throw new Error("Unable to retrieve records from the government Mandi API.")
       
-      const filtered = d.records.filter(r => {
-        const matchState = !state || r.state?.toLowerCase() === state.toLowerCase()
-        const matchCommodity = !commodity || r.commodity?.toLowerCase().includes(commodity.toLowerCase())
-        return matchState && matchCommodity
-      })
-      
-      setData(filtered)
+      setData(d.records)
     } catch (err) {
       setError(err.message || t('error'))
     } finally {
