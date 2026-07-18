@@ -24,11 +24,13 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_FILE = os.path.normpath(asset_path('..', 'env', '.env'))
 
 
 def asset_path(*parts):
     return os.path.join(BASE_DIR, *parts)
+
+
+ENV_FILE = os.path.normpath(asset_path('..', 'env', '.env'))
 
 
 if os.path.exists(ENV_FILE):
