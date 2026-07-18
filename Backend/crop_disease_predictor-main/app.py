@@ -3,6 +3,7 @@ import json
 import pickle
 import numpy as np
 import requests
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, Response
 from werkzeug.utils import secure_filename
 from PIL import Image
@@ -23,10 +24,15 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_FILE = os.path.normpath(asset_path('..', 'env', '.env'))
 
 
 def asset_path(*parts):
     return os.path.join(BASE_DIR, *parts)
+
+
+if os.path.exists(ENV_FILE):
+    load_dotenv(ENV_FILE)
 
 
 UPLOAD_FOLDER = asset_path('uploads')
@@ -88,11 +94,15 @@ FERTILIZER_RULES = {
 }
 
 # Weather API configuration
-WEATHER_API_KEY = "eb882d7968a1b9b01b83b6b9f78f7586"
+WEATHER_API_KEY = os.getenv('WEATHER_API_KEY', '').strip()
 
 def get_weather(city):
     """Get temperature and humidity from city name using OpenWeatherMap API"""
     try:
+        if not WEATHER_API_KEY:
+            print('Weather API key is not configured; using fallback values')
+            return 25, 60
+
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city},IN&appid={WEATHER_API_KEY}&units=metric"
         response = requests.get(url, timeout=5)
         data = response.json()
