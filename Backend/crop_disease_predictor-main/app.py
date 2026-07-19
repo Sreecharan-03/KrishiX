@@ -54,10 +54,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.after_request
 def apply_client_origin_headers(response):
-    if CLIENT_URL:
+    origin = request.headers.get('Origin', '*')
+    if CLIENT_URL and origin == CLIENT_URL:
         response.headers['Access-Control-Allow-Origin'] = CLIENT_URL
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    else:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS,PUT,DELETE'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
 
