@@ -115,12 +115,18 @@ except Exception as e:
 YIELD_MODEL = None
 try:
     yield_candidates = ['yield_model.pkl', 'crop_yield_model.pkl', 'predictor.pkl']
-    for model_file in yield_candidates:
-        candidate = asset_path(model_file)
-        if os.path.exists(candidate):
-            with open(candidate, 'rb') as f:
-                YIELD_MODEL = pickle.load(f)
-            print(f'Yield prediction model loaded from {model_file}')
+    # Search in the current directory first, then in yeild_prediction folder
+    yield_search_dirs = [BASE_DIR, os.path.join(BASE_DIR, '..', 'yeild_prediction')]
+    for search_dir in yield_search_dirs:
+        search_dir = os.path.normpath(search_dir)
+        for model_file in yield_candidates:
+            candidate = os.path.join(search_dir, model_file)
+            if os.path.exists(candidate):
+                with open(candidate, 'rb') as f:
+                    YIELD_MODEL = pickle.load(f)
+                print(f'Yield prediction model loaded from {model_file}')
+                break
+        if YIELD_MODEL is not None:
             break
     if YIELD_MODEL is None:
         print('Warning: No serialized yield prediction model found')
@@ -330,8 +336,8 @@ try:
         raise FileNotFoundError('No class names file found (class_names.pkl or classes.pkl)')
 
     # disease_info.json optional; if missing, build from class names
-    if os.path.exists('disease_info.json'):
-        with open('disease_info.json', 'r') as f:
+    if os.path.exists(asset_path('disease_info.json')):
+        with open(asset_path('disease_info.json'), 'r') as f:
             DISEASE_INFO = json.load(f)
     else:
         print('Warning: disease_info.json not found. Using generated metadata from class names.')
@@ -428,11 +434,11 @@ def get_weather_api():
 
 @app.route('/price.html')
 def crop_prices():
-    # Serve price.html from the main folder
-    price_html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'price.html')
-    with open(price_html_path, 'r', encoding='utf-8') as f:
-        html_content = f.read()
-    return Response(html_content, mimetype='text/html')
+    return render_page_or_fallback(
+        'price.html',
+        'Crop Prices',
+        'The price page template is not deployed on the backend server.',
+    )
 
 @app.route('/api/predict', methods=['POST'])
 @app.route('/api/disease_prediction', methods=['POST'])
