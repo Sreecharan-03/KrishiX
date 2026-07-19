@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import PageWrapper from '../components/PageWrapper'
 import { TrendingUp, Loader2, ChevronRight, BarChart3 } from 'lucide-react'
+import { yieldPredict } from '../utils/api'
 
 function InputField({ label, type = 'number', value, onChange, placeholder, min, max, step }) {
   return (
@@ -33,20 +34,16 @@ export default function YieldPredictor() {
     if (Object.values(form).some(v => !v)) { setError(t('fill_all')); return }
     setError(''); setResult(null); setLoading(true)
     try {
-      const res = await fetch('/api/yield_prediction', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rainfall: parseFloat(form.rainfall),
-          soil_quality: parseFloat(form.soil_quality),
-          farm_size: parseFloat(form.farm_size),
-          sunlight_hours: parseFloat(form.sunlight_hours),
-          fertilizer_used: parseFloat(form.fertilizer_used),
-        })
+      const d = await yieldPredict({
+        rainfall: parseFloat(form.rainfall),
+        soil_quality: parseFloat(form.soil_quality),
+        farm_size: parseFloat(form.farm_size),
+        sunlight_hours: parseFloat(form.sunlight_hours),
+        fertilizer_used: parseFloat(form.fertilizer_used),
       })
-      const d = await res.json()
-      if (d.error) throw new Error(d.error)
-      setResult(d)
+      const data = d.data
+      if (data?.error) throw new Error(data.error)
+      setResult(data)
     } catch (err) {
       setError(err.message || t('error'))
     } finally {

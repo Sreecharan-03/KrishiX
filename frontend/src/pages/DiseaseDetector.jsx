@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import PageWrapper from '../components/PageWrapper'
 import { ShieldAlert, Upload, Loader2, X, ImagePlus, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { diseasePredict } from '../utils/api'
 
 export default function DiseaseDetector() {
   const { t } = useApp()
@@ -30,13 +31,11 @@ export default function DiseaseDetector() {
   const handleSubmit = async () => {
     if (!image) { setError('Please upload a leaf image.'); return }
     setError(''); setResult(null); setLoading(true)
-    const fd = new FormData()
-    fd.append('file', image)
     try {
-      const res = await fetch('/api/disease_prediction', { method: 'POST', body: fd })
-      const d = await res.json()
-      if (d.error) throw new Error(d.error)
-      setResult(d)
+      const d = await diseasePredict(image)
+      const data = d.data
+      if (data?.error) throw new Error(data.error)
+      setResult(data)
     } catch (err) {
       setError(err.message || t('error'))
     } finally {

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import PageWrapper from '../components/PageWrapper'
 import { Sprout, Loader2, ChevronRight, MapPin } from 'lucide-react'
+import { cropPredict, getWeather } from '../utils/api'
 
 const CROP_TYPES = ['Rice', 'Wheat', 'Maize', 'Chickpea', 'Kidneybeans', 'Pigeonpeas', 'Mothbeans',
   'Mungbean', 'Blackgram', 'Lentil', 'Pomegranate', 'Banana', 'Mango', 'Grapes', 'Watermelon',
@@ -35,10 +36,10 @@ export default function CropRecommendation() {
   const fetchWeather = async () => {
     if (!form.city.trim()) return
     try {
-      const res = await fetch(`/api/weather?city=${encodeURIComponent(form.city)}`)
-      const d = await res.json()
-      if (d.temperature !== undefined) {
-        setForm(f => ({ ...f, temperature: d.temperature, humidity: d.humidity }))
+      const d = await getWeather(form.city)
+      const data = d.data
+      if (data?.temperature !== undefined) {
+        setForm(f => ({ ...f, temperature: data.temperature, humidity: data.humidity }))
       }
     } catch { /* silent */ }
   }
@@ -49,18 +50,14 @@ export default function CropRecommendation() {
     if (required.some(k => !form[k])) { setError(t('fill_all')); return }
     setError(''); setResult(null); setLoading(true)
     try {
-      const res = await fetch('/api/crop_recommendation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          N: parseFloat(form.N), P: parseFloat(form.P), K: parseFloat(form.K),
-          temperature: parseFloat(form.temperature), humidity: parseFloat(form.humidity),
-          ph: parseFloat(form.ph), rainfall: parseFloat(form.rainfall),
-        })
+      const d = await cropPredict({
+        N: parseFloat(form.N), P: parseFloat(form.P), K: parseFloat(form.K),
+        temperature: parseFloat(form.temperature), humidity: parseFloat(form.humidity),
+        ph: parseFloat(form.ph), rainfall: parseFloat(form.rainfall),
       })
-      const d = await res.json()
-      if (d.error) throw new Error(d.error)
-      setResult(d)
+      const data = d.data
+      if (data?.error) throw new Error(data.error)
+      setResult(data)
     } catch (err) {
       setError(err.message || t('error'))
     } finally {
