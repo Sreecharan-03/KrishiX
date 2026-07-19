@@ -48,6 +48,37 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+
+def render_page_or_fallback(template_name, title, message):
+        template_path = asset_path('templates', template_name)
+        if os.path.exists(template_path):
+                return render_template(template_name)
+
+        return Response(
+                f"""<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{title}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f3fbf6; color: #113322; }}
+            main {{ max-width: 720px; padding: 32px; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.08); }}
+            h1 {{ margin-top: 0; }}
+            a {{ color: #2e8b57; }}
+        </style>
+    </head>
+    <body>
+        <main>
+            <h1>{title}</h1>
+            <p>{message}</p>
+            <p>The backend is running. API endpoints remain available.</p>
+        </main>
+    </body>
+</html>""",
+                mimetype='text/html',
+        )
+
 # Load Crop Recommendation Model
 CROP_MODEL = None
 CROP_SCALER = None
@@ -330,19 +361,35 @@ def predict_disease(image_path):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_page_or_fallback(
+        'index.html',
+        'KrishiX Backend',
+        'The main frontend template is not deployed on this server, so this fallback page is shown instead.',
+    )
 
 @app.route('/disease predictor.html')
 def disease_predictor():
-    return render_template('disease predictor.html')
+    return render_page_or_fallback(
+        'disease predictor.html',
+        'Disease Predictor',
+        'The disease predictor template is missing in the backend deployment.',
+    )
 
 @app.route('/crop.html')
 def crop_recommendation():
-    return render_template('crop.html')
+    return render_page_or_fallback(
+        'crop.html',
+        'Crop Recommendation',
+        'The crop recommendation template is missing in the backend deployment.',
+    )
 
 @app.route('/fertilizer.html')
 def fertilizer_prediction():
-    return render_template('fertilizer.html')
+    return render_page_or_fallback(
+        'fertilizer.html',
+        'Fertilizer Prediction',
+        'The fertilizer prediction template is missing in the backend deployment.',
+    )
 
 @app.route('/api/weather', methods=['POST'])
 @app.route('/api/weather', methods=['GET'])
@@ -474,7 +521,11 @@ def crop_predict():
 @app.route('/yeild.html')
 @app.route('/yeild')
 def yield_prediction():
-    return render_template('yeild.html')
+    return render_page_or_fallback(
+        'yeild.html',
+        'Yield Prediction',
+        'The yield prediction template is missing in the backend deployment.',
+    )
 
 @app.route('/api/fertilizer-predict', methods=['POST'])
 @app.route('/api/fertilizer_prediction', methods=['POST'])
