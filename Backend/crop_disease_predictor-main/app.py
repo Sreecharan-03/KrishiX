@@ -37,6 +37,9 @@ if os.path.exists(ENV_FILE):
     load_dotenv(ENV_FILE)
 
 
+CLIENT_URL = os.getenv('CLIENT_URL', '').strip()
+
+
 UPLOAD_FOLDER = asset_path('uploads')
 
 MODEL_LOADED = False
@@ -47,6 +50,15 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+@app.after_request
+def apply_client_origin_headers(response):
+    if CLIENT_URL:
+        response.headers['Access-Control-Allow-Origin'] = CLIENT_URL
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    return response
 
 
 def render_page_or_fallback(template_name, title, message):
