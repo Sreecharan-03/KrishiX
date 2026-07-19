@@ -1,0 +1,154 @@
+{
+  "Apple___Apple_scab": {
+    "plant": "Apple",
+    "disease": "Apple scab"
+  },
+  "Apple___Black_rot": {
+    "plant": "Apple",
+    "disease": "Black rot"
+  },
+  "Apple___Cedar_apple_rust": {
+    "plant": "Apple",
+    "disease": "Cedar apple rust"
+  },
+  "Apple___healthy": {
+    "plant": "Apple",
+    "disease": "healthy"
+  },
+  "Blueberry___healthy": {
+    "plant": "Blueberry",
+    "disease": "healthy"
+  },
+  "Cherry_(including_sour)___Powdery_mildew": {
+    "plant": "Cherry (including sour)",
+    "disease": "Powdery mildew"
+  },
+  "Cherry_(including_sour)___healthy": {
+    "plant": "Cherry (including sour)",
+    "disease": "healthy"
+  },
+  "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot": {
+    "plant": "Corn (maize)",
+    "disease": "Cercospora leaf spot Gray leaf spot"
+  },
+  "Corn_(maize)___Common_rust_": {
+    "plant": "Corn (maize)",
+    "disease": "Common rust"
+  },
+  "Corn_(maize)___Northern_Leaf_Blight": {
+    "plant": "Corn (maize)",
+    "disease": "Northern Leaf Blight"
+  },
+  "Corn_(maize)___healthy": {
+    "plant": "Corn (maize)",
+    "disease": "healthy"
+  },
+  "Grape___Black_rot": {
+    "plant": "Grape",
+    "disease": "Black rot"
+  },
+  "Grape___Esca_(Black_Measles)": {
+    "plant": "Grape",
+    "disease": "Esca (Black Measles)"
+  },
+  "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)": {
+    "plant": "Grape",
+    "disease": "Leaf blight (Isariopsis Leaf Spot)"
+  },
+  "Grape___healthy": {
+    "plant": "Grape",
+    "disease": "healthy"
+  },
+  "Orange___Haunglongbing_(Citrus_greening)": {
+    "plant": "Orange",
+    "disease": "Haunglongbing (Citrus greening)"
+  },
+  "Peach___Bacterial_spot": {
+    "plant": "Peach",
+    "disease": "Bacterial spot"
+  },
+  "Peach___healthy": {
+    "plant": "Peach",
+    "disease": "healthy"
+  },
+  "Pepper,_bell___Bacterial_spot": {
+    "plant": "Pepper, bell",
+    "disease": "Bacterial spot"
+  },
+  "Pepper,_bell___healthy": {
+    "plant": "Pepper, bell",
+    "disease": "healthy"
+  },
+  "Potato___Early_blight": {
+    "plant": "Potato",
+    "disease": "Early blight"
+  },
+  "Potato___Late_blight": {
+    "plant": "Potato",
+    "disease": "Late blight"
+  },
+  "Potato___healthy": {
+    "plant": "Potato",
+    "disease": "healthy"
+  },
+  "Raspberry___healthy": {
+    "plant": "Raspberry",
+    "disease": "healthy"
+  },
+  "Soybean___healthy": {
+    "plant": "Soybean",
+    "disease": "healthy"
+  },
+  "Squash___Powdery_mildew": {
+    "plant": "Squash",
+    "disease": "Powdery mildew"
+  },
+  "Strawberry___Leaf_scorch": {
+    "plant": "Strawberry",
+    "disease": "Leaf scorch"
+  },
+  "Strawberry___healthy": {
+    "plant": "Strawberry",
+    "disease": "healthy"
+  },
+  "Tomato___Bacterial_spot": {
+    "plant": "Tomato",
+    "disease": "Bacterial spot"
+  },
+  "Tomato___Early_blight": {
+    "plant": "Tomato",
+    "disease": "Early blight"
+  },
+  "Tomato___Late_blight": {
+    "plant": "Tomato",
+    "disease": "Late blight"
+  },
+  "Tomato___Leaf_Mold": {
+    "plant": "Tomato",
+    "disease": "Leaf Mold"
+  },
+  "Tomato___Septoria_leaf_spot": {
+    "plant": "Tomato",
+    "disease": "Septoria leaf spot"
+  },
+  "Tomato___Spider_mites Two-spotted_spider_mite": {
+    "plant": "Tomato",
+    "disease": "Spider mites Two-spotted spider mite"
+  },
+  "Tomato___Target_Spot": {
+    "plant": "Tomato",
+    "disease": "Target Spot"
+  },
+  "Tomato___Tomato_Yellow_Leaf_Curl_Virus": {
+    "plant": "Tomato",
+    "disease": "Tomato Yellow Leaf Curl Virus"
+  },
+  "Tomato___Tomato_mosaic_virus": {
+    "plant": "Tomato",
+    "disease": "Tomato mosaic virus"
+  },
+  "Tomato___healthy": {
+    "plant": "Tomato",
+    "disease": "healthy"
+  }
+}

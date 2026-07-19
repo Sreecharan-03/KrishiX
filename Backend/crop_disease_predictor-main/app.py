@@ -129,7 +129,7 @@ try:
         if YIELD_MODEL is not None:
             break
     if YIELD_MODEL is None:
-        print('Warning: No serialized yield prediction model found')
+        print('Yield prediction: using rule-based fallback (no ML model file found)')
 except Exception as e:
     print(f'Error loading yield model: {str(e)}')
 
