@@ -2,7 +2,8 @@ import axios from 'axios'
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://krishix.onrender.com',
-  timeout: 30000,
+  // 60 s — Render free tier can take 30-50 s to wake from sleep
+  timeout: 60000,
 })
 
 export const cropPredict = (data) => API.post('/api/crop-predict', data)

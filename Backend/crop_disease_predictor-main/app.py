@@ -39,6 +39,9 @@ if os.path.exists(ENV_FILE):
 
 CLIENT_URL = os.getenv('CLIENT_URL', '').strip()
 
+# Build a list of allowed origins from CLIENT_URL (supports comma-separated values)
+ALLOWED_ORIGINS = [o.strip().rstrip('/') for o in CLIENT_URL.split(',') if o.strip()] if CLIENT_URL else []
+
 
 UPLOAD_FOLDER = asset_path('uploads')
 
@@ -54,15 +57,31 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.after_request
 def apply_client_origin_headers(response):
-    origin = request.headers.get('Origin', '*')
-    if CLIENT_URL and origin == CLIENT_URL:
-        response.headers['Access-Control-Allow-Origin'] = CLIENT_URL
-    else:
+    origin = request.headers.get('Origin', '')
+    # Allow the origin if it matches any configured allowed origin,
+    # or if it ends with .vercel.app (covers preview deployments)
+    origin_allowed = (
+        origin in ALLOWED_ORIGINS
+        or origin.endswith('.vercel.app')
+        or origin.endswith('.onrender.com')
+    )
+    if origin_allowed:
         response.headers['Access-Control-Allow-Origin'] = origin
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+    elif not ALLOWED_ORIGINS:
+        # No restriction configured — allow all (development / open API)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With'
     response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS,PUT,DELETE'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Max-Age'] = '600'
     return response
+
+
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+@app.route('/', methods=['OPTIONS'])
+def handle_options(path=''):
+    """Handle CORS preflight OPTIONS requests for all API routes."""
+    return '', 204
 
 
 def render_page_or_fallback(template_name, title, message):
