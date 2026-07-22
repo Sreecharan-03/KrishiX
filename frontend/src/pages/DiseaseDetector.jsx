@@ -53,18 +53,41 @@ export default function DiseaseDetector() {
     if (f && f.type.startsWith('image/')) handleFile(f)
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (retryCount = 0) => {
     if (!image) { setError('Please upload a leaf image.'); return }
     setError(''); setResult(null); setLoading(true)
     try {
       const d = await diseasePredict(image)
       const data = d.data
+      // 503 = model still loading in background thread — auto retry
+      if (data?.loading) {
+        const waitSec = data.retry_after || 15
+        let countdown = waitSec
+        const tick = setInterval(() => {
+          countdown -= 1
+          setError(`⏳ AI model loading… retrying in ${countdown}s`)
+          if (countdown <= 0) clearInterval(tick)
+        }, 1000)
+        setError(`⏳ AI model loading… retrying in ${waitSec}s`)
+        setTimeout(() => {
+          clearInterval(tick)
+          handleSubmit(retryCount + 1)
+        }, waitSec * 1000)
+        return
+      }
       if (data?.error) throw new Error(data.error)
       setResult(data)
+      setError('')
     } catch (err) {
+      // Network timeout — auto retry once if server was still waking
+      if (retryCount === 0 && err.message?.includes('waking up')) {
+        setError('⏳ Server waking up… retrying in 20s')
+        setTimeout(() => handleSubmit(1), 20000)
+        return
+      }
       setError(err.message || t('error'))
     } finally {
-      setLoading(false)
+      if (retryCount === 0 || result) setLoading(false)
     }
   }
 

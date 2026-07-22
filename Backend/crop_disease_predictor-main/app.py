@@ -1,6 +1,7 @@
 import os
 import json
 import pickle
+import threading
 import numpy as np
 import requests
 from dotenv import load_dotenv
@@ -10,14 +11,10 @@ from PIL import Image
 import io
 import base64
 
-try:
-    import keras as standalone_keras
-    KERAS_MODELS = standalone_keras.models
-    KERAS_PREPROCESSING = standalone_keras.preprocessing
-except Exception:
-    from tensorflow import keras as tensorflow_keras
-    KERAS_MODELS = tensorflow_keras.models
-    KERAS_PREPROCESSING = tensorflow_keras.preprocessing
+# Keras/TF are imported lazily inside the background loader thread
+# so Flask can start and respond immediately on cold start
+KERAS_MODELS = None
+KERAS_PREPROCESSING = None
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -46,6 +43,8 @@ ALLOWED_ORIGINS = [o.strip().rstrip('/') for o in CLIENT_URL.split(',') if o.str
 UPLOAD_FOLDER = asset_path('uploads')
 
 MODEL_LOADED = False
+MODEL_LOADING = True   # True while background thread is still loading
+MODEL_LOADING_ERROR = None
 CLASS_NAMES: list[str] = []
 DISEASE_INFO = {}
 
@@ -114,47 +113,108 @@ def render_page_or_fallback(template_name, title, message):
                 mimetype='text/html',
         )
 
-# Load Crop Recommendation Model
+# ---------------------------------------------------------------------------
+# Background model loader — runs in a daemon thread so Flask starts instantly
+# ---------------------------------------------------------------------------
 CROP_MODEL = None
 CROP_SCALER = None
-try:
-    # Try ensemble model first, then fall back to regular model
-    model_files = ['ensemble_crop_model.pkl', 'ensemble_crop_model (1).pkl', 'crop_recommendation_model.pkl']
-    for model_file in model_files:
-        candidate = asset_path(model_file)
-        if os.path.exists(candidate):
-            with open(candidate, 'rb') as f:
-                crop_data = pickle.load(f)
-                CROP_MODEL = crop_data['model']
-                CROP_SCALER = crop_data['scaler']
-            print(f'Crop recommendation model loaded from {model_file}')
-            break
-    if CROP_MODEL is None:
-        print('Warning: No crop recommendation model found')
-except Exception as e:
-    print(f'Error loading crop model: {str(e)}')
-
-# Load Yield Prediction Model
 YIELD_MODEL = None
-try:
-    yield_candidates = ['yield_model.pkl', 'crop_yield_model.pkl', 'predictor.pkl']
-    # Search in the current directory first, then in yeild_prediction folder
-    yield_search_dirs = [BASE_DIR, os.path.join(BASE_DIR, '..', 'yeild_prediction')]
-    for search_dir in yield_search_dirs:
-        search_dir = os.path.normpath(search_dir)
-        for model_file in yield_candidates:
-            candidate = os.path.join(search_dir, model_file)
+MODEL = None
+
+
+def _load_all_models():
+    global KERAS_MODELS, KERAS_PREPROCESSING
+    global CROP_MODEL, CROP_SCALER, YIELD_MODEL
+    global MODEL, MODEL_LOADED, MODEL_LOADING, MODEL_LOADING_ERROR
+    global CLASS_NAMES, DISEASE_INFO
+
+    print('[loader] Background model loading started...')
+
+    # --- 1. Import TensorFlow/Keras (the slow part) ---
+    try:
+        try:
+            import keras as standalone_keras
+            KERAS_MODELS = standalone_keras.models
+            KERAS_PREPROCESSING = standalone_keras.preprocessing
+            print('[loader] Using standalone keras')
+        except Exception:
+            from tensorflow import keras as tensorflow_keras
+            KERAS_MODELS = tensorflow_keras.models
+            KERAS_PREPROCESSING = tensorflow_keras.preprocessing
+            print('[loader] Using tensorflow.keras')
+    except Exception as e:
+        print(f'[loader] Keras import failed: {e}')
+        MODEL_LOADING_ERROR = str(e)
+        MODEL_LOADING = False
+        return
+
+    # --- 2. Crop Recommendation Model (pickle - fast) ---
+    try:
+        model_files = ['ensemble_crop_model.pkl', 'ensemble_crop_model (1).pkl', 'crop_recommendation_model.pkl']
+        for model_file in model_files:
+            candidate = asset_path(model_file)
             if os.path.exists(candidate):
                 with open(candidate, 'rb') as f:
-                    YIELD_MODEL = pickle.load(f)
-                print(f'Yield prediction model loaded from {model_file}')
+                    crop_data = pickle.load(f)
+                    CROP_MODEL = crop_data['model']
+                    CROP_SCALER = crop_data['scaler']
+                print(f'[loader] Crop model loaded from {model_file}')
                 break
-        if YIELD_MODEL is not None:
-            break
-    if YIELD_MODEL is None:
-        print('Yield prediction: using rule-based fallback (no ML model file found)')
-except Exception as e:
-    print(f'Error loading yield model: {str(e)}')
+        if CROP_MODEL is None:
+            print('[loader] Warning: No crop recommendation model found')
+    except Exception as e:
+        print(f'[loader] Crop model error: {e}')
+
+    # --- 3. Yield Model (pickle - fast) ---
+    try:
+        yield_candidates = ['yield_model.pkl', 'crop_yield_model.pkl', 'predictor.pkl']
+        yield_search_dirs = [BASE_DIR, os.path.join(BASE_DIR, '..', 'yeild_prediction')]
+        for search_dir in yield_search_dirs:
+            search_dir = os.path.normpath(search_dir)
+            for model_file in yield_candidates:
+                candidate = os.path.join(search_dir, model_file)
+                if os.path.exists(candidate):
+                    with open(candidate, 'rb') as f:
+                        YIELD_MODEL = pickle.load(f)
+                    print(f'[loader] Yield model loaded from {model_file}')
+                    break
+            if YIELD_MODEL is not None:
+                break
+        if YIELD_MODEL is None:
+            print('[loader] Yield: using rule-based fallback')
+    except Exception as e:
+        print(f'[loader] Yield model error: {e}')
+
+    # --- 4. Disease Detection Model (Keras .h5 - slow) ---
+    try:
+        MODEL = KERAS_MODELS.load_model(asset_path('crop_disease_model.h5'), compile=False)
+        class_files = ['class_names.pkl', 'classes.pkl']
+        for cls_path in class_files:
+            candidate = asset_path(cls_path)
+            if os.path.exists(candidate):
+                with open(candidate, 'rb') as f:
+                    CLASS_NAMES = pickle.load(f)
+                break
+        if not CLASS_NAMES:
+            raise FileNotFoundError('No class names file found')
+        if os.path.exists(asset_path('disease_info.json')):
+            with open(asset_path('disease_info.json'), 'r') as f:
+                DISEASE_INFO = json.load(f)
+        else:
+            DISEASE_INFO = _default_disease_info(CLASS_NAMES)
+        MODEL_LOADED = True
+        print('[loader] Disease model loaded successfully')
+    except Exception as e:
+        print(f'[loader] Disease model error: {e}')
+        MODEL_LOADED = False
+
+    MODEL_LOADING = False
+    print('[loader] All models loaded. Server fully ready.')
+
+
+# Start loading immediately in background
+_loader_thread = threading.Thread(target=_load_all_models, daemon=True, name='model-loader')
+_loader_thread.start()
 
 # Fertilizer Recommendation Rules (Simple rule-based system)
 FERTILIZER_RULES = {
@@ -342,37 +402,10 @@ def _fallback_disease_prediction(image_path):
             'remedy': 'Unable to analyze the image. Try a clearer leaf photo with good lighting.',
         }
 
-# Load model and data with fallbacks
-try:
-    MODEL = KERAS_MODELS.load_model(asset_path('crop_disease_model.h5'), compile=False)
-
-    # Prefer class_names.pkl but fall back to classes.pkl (used by training script)
-    class_files = ['class_names.pkl', 'classes.pkl']
-    CLASS_NAMES: list[str] = []
-    for cls_path in class_files:
-        candidate = asset_path(cls_path)
-        if os.path.exists(candidate):
-            with open(candidate, 'rb') as f:
-                CLASS_NAMES = pickle.load(f)
-            break
-    if not CLASS_NAMES:
-        raise FileNotFoundError('No class names file found (class_names.pkl or classes.pkl)')
-
-    # disease_info.json optional; if missing, build from class names
-    if os.path.exists(asset_path('disease_info.json')):
-        with open(asset_path('disease_info.json'), 'r') as f:
-            DISEASE_INFO = json.load(f)
-    else:
-        print('Warning: disease_info.json not found. Using generated metadata from class names.')
-        DISEASE_INFO = _default_disease_info(CLASS_NAMES)
-
-    MODEL_LOADED = True
-except Exception as e:
-    print(f"Error loading model: {e}")
-    MODEL_LOADED = False
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def predict_disease(image_path):
     """Predict disease from image"""
@@ -466,6 +499,14 @@ def crop_prices():
 @app.route('/api/predict', methods=['POST'])
 @app.route('/api/disease_prediction', methods=['POST'])
 def api_predict():
+    # Return 503 while models are still loading in background
+    if MODEL_LOADING:
+        return jsonify({
+            'loading': True,
+            'error': 'AI models are still loading. Please wait ~30 seconds and try again.',
+            'retry_after': 15,
+        }), 503
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     
@@ -728,11 +769,14 @@ def yield_predict():
 @app.route('/api/model-status', methods=['GET'])
 def model_status():
     return jsonify({
+        'loading': MODEL_LOADING,
         'loaded': MODEL_LOADED,
+        'ready': not MODEL_LOADING,
         'classes': len(CLASS_NAMES) if MODEL_LOADED else 0,
         'total_diseases': len(CLASS_NAMES) if MODEL_LOADED else 0,
         'crop_model_loaded': CROP_MODEL is not None,
-        'yield_model_loaded': YIELD_MODEL is not None
+        'yield_model_loaded': YIELD_MODEL is not None,
+        'error': MODEL_LOADING_ERROR,
     })
 
 if __name__ == '__main__':
