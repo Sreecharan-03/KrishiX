@@ -53,45 +53,17 @@ export default function DiseaseDetector() {
     if (f && f.type.startsWith('image/')) handleFile(f)
   }
 
-  const handleSubmit = async (retryCount = 0) => {
+  const handleSubmit = async () => {
     if (!image) { setError('Please upload a leaf image.'); return }
-    if (retryCount === 0) { setError(''); setResult(null); setLoading(true) }
-
-    const scheduleRetry = (waitSec) => {
-      let countdown = waitSec
-      setError(`⏳ AI model loading… retrying in ${countdown}s`)
-      const tick = setInterval(() => {
-        countdown -= 1
-        setError(`⏳ AI model loading… retrying in ${countdown}s`)
-        if (countdown <= 0) clearInterval(tick)
-      }, 1000)
-      setTimeout(() => {
-        clearInterval(tick)
-        if (retryCount < 6) handleSubmit(retryCount + 1)
-        else { setError('AI model failed to load after multiple retries. Please refresh the page.'); setLoading(false) }
-      }, waitSec * 1000)
-    }
-
+    setError(''); setResult(null); setLoading(true)
     try {
       const d = await diseasePredict(image)
       const data = d.data
-      // 503 = model still loading in background thread — auto retry
-      if (data?.loading) {
-        scheduleRetry(data.retry_after || 20)
-        return
-      }
       if (data?.error) throw new Error(data.error)
       setResult(data)
-      setError('')
-      setLoading(false)
     } catch (err) {
-      const msg = err.message || ''
-      // Auto-retry if server is still loading or waking up
-      if (msg.includes('still loading') || msg.includes('loading') || msg.includes('waking up')) {
-        scheduleRetry(20)
-        return
-      }
-      setError(msg || t('error'))
+      setError(err.message || t('error'))
+    } finally {
       setLoading(false)
     }
   }
@@ -206,6 +178,9 @@ export default function DiseaseDetector() {
                       ? <CheckCircle2 size={20} className="text-emerald-200" />
                       : <AlertTriangle size={20} className="text-rose-200" />}
                     <p className="text-xs font-bold uppercase tracking-widest text-white/70">{t('disease_disease')}</p>
+                    {result.source === 'heuristic' && (
+                      <span className="ml-auto text-xs bg-white/20 px-2 py-0.5 rounded-full">Quick scan</span>
+                    )}
                   </div>
                   <h2 className="font-display font-black text-2xl sm:text-3xl mb-1">{result.disease}</h2>
                   {result.plant && <p className="text-sm text-white/70">{t('disease_plant')}: <strong className="text-white">{result.plant}</strong></p>}
@@ -219,7 +194,11 @@ export default function DiseaseDetector() {
                       </div>
                     </div>
                   )}
+                  {result.note && (
+                    <p className="mt-4 text-xs text-white/60 italic">{result.note}</p>
+                  )}
                 </div>
+
 
                 {result.remedy && (
                   <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-white/60 dark:border-gray-700/60 rounded-3xl p-6 shadow-sm animate-fadeInUp">

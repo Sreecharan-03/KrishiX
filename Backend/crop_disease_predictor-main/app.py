@@ -499,47 +499,44 @@ def crop_prices():
 @app.route('/api/predict', methods=['POST'])
 @app.route('/api/disease_prediction', methods=['POST'])
 def api_predict():
-    # Return 503 while models are still loading in background
-    if MODEL_LOADING:
-        return jsonify({
-            'loading': True,
-            'error': 'AI models are still loading. Please wait ~30 seconds and try again.',
-            'retry_after': 15,
-        }), 503
-
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
-    
+
     file = request.files['file']
-    
+
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
-    
+
     if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file type. Only PNG, JPG, JPEG allowed'}), 400
-    
+        return jsonify({'error': 'Invalid file type. Only PNG, JPG, JPEG, WEBP allowed'}), 400
+
     try:
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        
-        # Make prediction or fall back to a lightweight image heuristic.
+
+        # Use ML model if loaded, otherwise instant PIL/numpy heuristic (no TF needed)
         if MODEL_LOADED:
             result = predict_disease(filepath)
             result['remedy'] = _remedy_for_disease(result.get('plant'), result.get('disease'))
+            result['source'] = 'ml_model'
         else:
             result = _fallback_disease_prediction(filepath)
-        
+            result['source'] = 'heuristic'
+            if MODEL_LOADING:
+                result['note'] = 'AI model is still loading in background. This is a quick heuristic result.'
+
         # Convert image to base64 for display
         with open(filepath, 'rb') as img_file:
             img_data = base64.b64encode(img_file.read()).decode()
-        
+
         result['image'] = f"data:image/jpeg;base64,{img_data}"
-        
+
         return jsonify(result)
-    
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/crop-predict', methods=['POST'])
 @app.route('/api/crop_recommendation', methods=['POST'])
