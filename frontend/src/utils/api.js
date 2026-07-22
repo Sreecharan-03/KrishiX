@@ -12,6 +12,10 @@ const API = axios.create({
 API.interceptors.response.use(
   res => res,
   err => {
+    // ✅ 503 "loading" response — resolve it so components can handle retry themselves
+    if (err.response?.status === 503 && err.response?.data?.loading) {
+      return Promise.resolve(err.response)
+    }
     if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
       return Promise.reject(new Error(
         '⏳ Server is waking up from sleep (Render free tier). Please wait ~60 seconds and try again.'

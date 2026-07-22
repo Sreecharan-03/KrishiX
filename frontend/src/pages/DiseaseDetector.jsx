@@ -55,39 +55,44 @@ export default function DiseaseDetector() {
 
   const handleSubmit = async (retryCount = 0) => {
     if (!image) { setError('Please upload a leaf image.'); return }
-    setError(''); setResult(null); setLoading(true)
+    if (retryCount === 0) { setError(''); setResult(null); setLoading(true) }
+
+    const scheduleRetry = (waitSec) => {
+      let countdown = waitSec
+      setError(`⏳ AI model loading… retrying in ${countdown}s`)
+      const tick = setInterval(() => {
+        countdown -= 1
+        setError(`⏳ AI model loading… retrying in ${countdown}s`)
+        if (countdown <= 0) clearInterval(tick)
+      }, 1000)
+      setTimeout(() => {
+        clearInterval(tick)
+        if (retryCount < 6) handleSubmit(retryCount + 1)
+        else { setError('AI model failed to load after multiple retries. Please refresh the page.'); setLoading(false) }
+      }, waitSec * 1000)
+    }
+
     try {
       const d = await diseasePredict(image)
       const data = d.data
       // 503 = model still loading in background thread — auto retry
       if (data?.loading) {
-        const waitSec = data.retry_after || 15
-        let countdown = waitSec
-        const tick = setInterval(() => {
-          countdown -= 1
-          setError(`⏳ AI model loading… retrying in ${countdown}s`)
-          if (countdown <= 0) clearInterval(tick)
-        }, 1000)
-        setError(`⏳ AI model loading… retrying in ${waitSec}s`)
-        setTimeout(() => {
-          clearInterval(tick)
-          handleSubmit(retryCount + 1)
-        }, waitSec * 1000)
+        scheduleRetry(data.retry_after || 20)
         return
       }
       if (data?.error) throw new Error(data.error)
       setResult(data)
       setError('')
+      setLoading(false)
     } catch (err) {
-      // Network timeout — auto retry once if server was still waking
-      if (retryCount === 0 && err.message?.includes('waking up')) {
-        setError('⏳ Server waking up… retrying in 20s')
-        setTimeout(() => handleSubmit(1), 20000)
+      const msg = err.message || ''
+      // Auto-retry if server is still loading or waking up
+      if (msg.includes('still loading') || msg.includes('loading') || msg.includes('waking up')) {
+        scheduleRetry(20)
         return
       }
-      setError(err.message || t('error'))
-    } finally {
-      if (retryCount === 0 || result) setLoading(false)
+      setError(msg || t('error'))
+      setLoading(false)
     }
   }
 
