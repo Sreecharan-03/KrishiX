@@ -27,14 +27,17 @@ export default function MandiPrices() {
     setLoading(true); setError(''); setData([])
     try {
       const params = new URLSearchParams({
-        'api-key': '579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b',
+        'api-key': '579b464db66ec23bdd00000159ddd2c3a988470b5aa5c69f8e448614',
         'format': 'json',
         'limit': '1000',
         'filters[state]': state,
       })
       const res = await fetch(`https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?${params}`)
+      if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`)
       const d = await res.json()
-      if (!d.records) throw new Error("Unable to retrieve records from the government Mandi API.")
+      if (!d.records || !Array.isArray(d.records)) {
+        throw new Error(d.message || 'Unable to retrieve records from the government Mandi API.')
+      }
       
       // Filter by commodity client-side with partial matching since API commodity names are verbose
       const filtered = commodity

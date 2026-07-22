@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import PageWrapper from '../components/PageWrapper'
-import { Sprout, Loader2, ChevronRight, MapPin } from 'lucide-react'
-import { cropPredict, getWeather } from '../utils/api'
+import { Sprout, Loader2, ChevronRight, MapPin, Zap } from 'lucide-react'
+import { cropPredict, getWeather, wakeUp, modelStatus } from '../utils/api'
 
 const CROP_TYPES = ['Rice', 'Wheat', 'Maize', 'Chickpea', 'Kidneybeans', 'Pigeonpeas', 'Mothbeans',
   'Mungbean', 'Blackgram', 'Lentil', 'Pomegranate', 'Banana', 'Mango', 'Grapes', 'Watermelon',
@@ -30,6 +30,23 @@ export default function CropRecommendation() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [warming, setWarming] = useState(true)
+  const [serverReady, setServerReady] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    wakeUp()
+    const check = async () => {
+      try {
+        const res = await modelStatus()
+        if (!cancelled && res.data) { setServerReady(true); setWarming(false) }
+      } catch { /* still waking */ }
+    }
+    const interval = setInterval(check, 8000)
+    check()
+    const timeout = setTimeout(() => { clearInterval(interval); if (!cancelled) setWarming(false) }, 90000)
+    return () => { cancelled = true; clearInterval(interval); clearTimeout(timeout) }
+  }, [])
 
   const setField = key => val => setForm(f => ({ ...f, [key]: val }))
 
@@ -77,6 +94,19 @@ export default function CropRecommendation() {
           <h1 className="font-display font-black text-4xl sm:text-5xl text-gray-900 dark:text-white tracking-tight mb-3">{t('crop_title')}</h1>
           <p className="text-gray-500 dark:text-gray-400 text-lg max-w-xl mx-auto">{t('crop_subtitle')}</p>
         </div>
+
+        {warming && (
+          <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 text-sm">
+            <Loader2 size={16} className="animate-spin shrink-0" />
+            <span><strong>AI server is warming up</strong> — takes ~60 seconds on first load. Fill the form while it wakes up.</span>
+          </div>
+        )}
+        {!warming && serverReady && (
+          <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-sm">
+            <Zap size={16} className="shrink-0" />
+            <span><strong>AI server is ready!</strong> Submit your values to get a crop recommendation.</span>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
