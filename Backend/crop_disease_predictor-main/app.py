@@ -1,7 +1,9 @@
 import os
+import sys
 import json
 import pickle
 import threading
+import traceback
 import numpy as np
 import requests
 from dotenv import load_dotenv
@@ -211,10 +213,11 @@ def _load_all_models():
     global MODEL, MODEL_LOADED, MODEL_LOADING, MODEL_LOADING_ERROR
     global CLASS_NAMES, DISEASE_INFO
 
-    print('[loader] Background model loading started...')
+    print('[loader] Background model loading started...', flush=True)
 
     # --- 0. Download model files from Google Drive if needed ---
     _download_model_files()
+    sys.stdout.flush()
 
     # --- 1. Import TensorFlow/Keras (the slow part) ---
     try:
@@ -272,14 +275,22 @@ def _load_all_models():
         print(f'[loader] Yield model error: {e}')
 
     # --- 4. Disease Detection Model (Keras .h5 - slow) ---
+    model_path = asset_path('crop_disease_model.h5')
+    print(f'[loader] Disease model path: {model_path}', flush=True)
+    print(f'[loader] Model file exists: {os.path.exists(model_path)}', flush=True)
+    if os.path.exists(model_path):
+        print(f'[loader] Model file size: {os.path.getsize(model_path)} bytes', flush=True)
     try:
-        MODEL = KERAS_MODELS.load_model(asset_path('crop_disease_model.h5'), compile=False)
+        print('[loader] Loading Keras model...', flush=True)
+        MODEL = KERAS_MODELS.load_model(model_path, compile=False)
+        print('[loader] Keras model loaded. Loading class names...', flush=True)
         class_files = ['class_names.pkl', 'classes.pkl']
         for cls_path in class_files:
             candidate = asset_path(cls_path)
             if os.path.exists(candidate):
                 with open(candidate, 'rb') as f:
                     CLASS_NAMES = pickle.load(f)
+                print(f'[loader] Class names loaded from {cls_path}: {len(CLASS_NAMES)} classes', flush=True)
                 break
         if not CLASS_NAMES:
             raise FileNotFoundError('No class names file found')
@@ -289,13 +300,17 @@ def _load_all_models():
         else:
             DISEASE_INFO = _default_disease_info(CLASS_NAMES)
         MODEL_LOADED = True
-        print('[loader] Disease model loaded successfully')
+        print('[loader] Disease model loaded successfully ✓', flush=True)
     except Exception as e:
-        print(f'[loader] Disease model error: {e}')
+        print(f'[loader] Disease model error: {e}', flush=True)
+        print('[loader] Full traceback:', flush=True)
+        traceback.print_exc()
+        sys.stdout.flush()
         MODEL_LOADED = False
 
     MODEL_LOADING = False
-    print('[loader] All models loaded. Server fully ready.')
+    print('[loader] All models loaded. Server fully ready.', flush=True)
+    sys.stdout.flush()
 
 
 # Start loading immediately in background
