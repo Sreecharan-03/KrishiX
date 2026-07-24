@@ -46,7 +46,7 @@ def _download_model_files():
     folder_id = os.getenv('GDRIVE_FOLDER_ID', '').strip()
     if folder_id:
         # Check if all three key files already exist — skip the whole download if so
-        needed = ['crop_disease_model.h5', 'classes.pkl', 'disease_info.json']
+        needed = ['crop_disease_model.tflite', 'classes.pkl', 'disease_info.json']
         missing = [f for f in needed if not os.path.exists(os.path.join(base, f))]
         if not missing:
             print('[gdrive] All model files already present — skipping folder download.')
@@ -66,7 +66,7 @@ def _download_model_files():
 
     # --- Per-file download (individual File IDs via env vars) ---
     file_targets = [
-        ('GDRIVE_MODEL_ID',        'crop_disease_model.h5'),
+        ('GDRIVE_MODEL_ID',        'crop_disease_model.tflite'),
         ('GDRIVE_CLASSES_ID',      'classes.pkl'),
         ('GDRIVE_DISEASE_INFO_ID', 'disease_info.json'),
     ]
