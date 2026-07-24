@@ -11,6 +11,89 @@ from PIL import Image
 import io
 import base64
 
+# ---------------------------------------------------------------------------
+# Google Drive model downloader
+# ---------------------------------------------------------------------------
+def _download_model_files():
+    """Download model files from Google Drive if they are missing locally.
+
+    Priority order for each file:
+      1. If a per-file env-var ID is set (GDRIVE_MODEL_ID, GDRIVE_CLASSES_ID,
+         GDRIVE_DISEASE_INFO_ID), download that specific file with gdown.
+      2. If GDRIVE_FOLDER_ID is set, download the entire folder once.
+      3. Skip silently — files will be loaded from local disk if they exist.
+
+    Set the following environment variables on Render:
+      GDRIVE_MODEL_ID        -> File ID of crop_disease_model.h5
+      GDRIVE_CLASSES_ID      -> File ID of classes.pkl
+      GDRIVE_DISEASE_INFO_ID -> File ID of disease_info.json
+
+    OR set a single variable:
+      GDRIVE_FOLDER_ID       -> Folder ID that contains all three files
+                                (e.g. 1eKI7Dr5lj3iXjEslEFnnXYpuHYj4Rhb_)
+    """
+    try:
+        import gdown  # imported here so startup is not blocked if gdown is missing
+    except ImportError:
+        print('[gdrive] gdown not installed — skipping Drive download (pip install gdown)')
+        return
+
+    base = os.path.dirname(os.path.abspath(__file__))
+
+    # --- Folder-level download (downloads everything in the folder) ---
+    folder_id = os.getenv('GDRIVE_FOLDER_ID', '').strip()
+    if folder_id:
+        # Check if all three key files already exist — skip the whole download if so
+        needed = ['crop_disease_model.h5', 'classes.pkl', 'disease_info.json']
+        missing = [f for f in needed if not os.path.exists(os.path.join(base, f))]
+        if not missing:
+            print('[gdrive] All model files already present — skipping folder download.')
+        else:
+            print(f'[gdrive] Downloading folder {folder_id} from Google Drive...')
+            try:
+                gdown.download_folder(
+                    id=folder_id,
+                    output=base,
+                    quiet=False,
+                    use_cookies=False,
+                )
+                print('[gdrive] Folder download complete.')
+            except Exception as e:
+                print(f'[gdrive] Folder download failed: {e}')
+        return  # folder path handled — don't fall through to per-file logic
+
+    # --- Per-file download (individual File IDs via env vars) ---
+    file_targets = [
+        ('GDRIVE_MODEL_ID',        'crop_disease_model.h5'),
+        ('GDRIVE_CLASSES_ID',      'classes.pkl'),
+        ('GDRIVE_DISEASE_INFO_ID', 'disease_info.json'),
+    ]
+
+    any_configured = False
+    for env_var, filename in file_targets:
+        file_id = os.getenv(env_var, '').strip()
+        if not file_id:
+            continue
+        any_configured = True
+        dest = os.path.join(base, filename)
+        if os.path.exists(dest):
+            print(f'[gdrive] {filename} already exists — skipping download.')
+            continue
+        url = f'https://drive.google.com/uc?id={file_id}'
+        print(f'[gdrive] Downloading {filename} from Google Drive (id={file_id})...')
+        try:
+            gdown.download(url, dest, quiet=False, fuzzy=True)
+            print(f'[gdrive] {filename} downloaded successfully.')
+        except Exception as e:
+            print(f'[gdrive] Failed to download {filename}: {e}')
+
+    if not any_configured:
+        print(
+            '[gdrive] No Google Drive IDs configured. '
+            'Set GDRIVE_FOLDER_ID or GDRIVE_MODEL_ID / GDRIVE_CLASSES_ID / '
+            'GDRIVE_DISEASE_INFO_ID env vars on Render to enable auto-download.'
+        )
+
 # Keras/TF are imported lazily inside the background loader thread
 # so Flask can start and respond immediately on cold start
 KERAS_MODELS = None
@@ -129,6 +212,9 @@ def _load_all_models():
     global CLASS_NAMES, DISEASE_INFO
 
     print('[loader] Background model loading started...')
+
+    # --- 0. Download model files from Google Drive if needed ---
+    _download_model_files()
 
     # --- 1. Import TensorFlow/Keras (the slow part) ---
     try:
