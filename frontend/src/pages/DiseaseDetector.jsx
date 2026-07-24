@@ -169,10 +169,16 @@ export default function DiseaseDetector() {
                   <X size={15} /> Remove
                 </button>
                 <button
-                  onClick={handleSubmit} disabled={loading}
-                  className="flex-[2] py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-rose-500/30 hover:shadow-rose-500/50 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none transition-all"
+                  onClick={handleSubmit}
+                  disabled={loading || warming}
+                  title={warming ? 'Please wait — AI model is still loading on the server' : ''}
+                  className="flex-[2] py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-rose-500/30 hover:shadow-rose-500/50 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all"
                 >
-                  {loading ? <><Loader2 size={15} className="animate-spin" /> {t('loading')}</> : <>{t('disease_btn')}</>}
+                  {loading
+                    ? <><Loader2 size={15} className="animate-spin" /> {t('loading')}</>
+                    : warming
+                    ? <><Loader2 size={15} className="animate-spin" /> AI model loading…</>
+                    : <>{t('disease_btn')}</>}
                 </button>
               </div>
             )}
@@ -180,11 +186,13 @@ export default function DiseaseDetector() {
             {!preview && (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="mt-4 w-full py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-bold text-sm shadow-lg shadow-rose-500/30 hover:-translate-y-0.5 transition-all"
+                disabled={warming}
+                title={warming ? 'Please wait — AI model is still loading on the server' : ''}
+                className="mt-4 w-full py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-bold text-sm shadow-lg shadow-rose-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all"
               >
-                {t('disease_btn')}
+                {warming ? <span className="flex items-center justify-center gap-2"><Loader2 size={15} className="animate-spin" /> AI model loading…</span> : t('disease_btn')}
               </button>
-            )}
+            )}   
 
             {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40 rounded-xl px-4 py-2.5 mt-4">{error}</p>}
           </div>
