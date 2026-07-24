@@ -572,7 +572,7 @@ def predict_disease(image_path):
         TFLITE_INTERPRETER.set_tensor(input_details[0]['index'], img_array)
         TFLITE_INTERPRETER.invoke()
         predictions = TFLITE_INTERPRETER.get_tensor(output_details[0]['index'])  # shape: (1, num_classes)
-    elif MODEL is not None and KERAS_PREPROCESSING is not None:
+    elif MODEL is not None:
         # --- Keras fallback ---
         predictions = MODEL.predict(img_array, verbose=0)
     else:
