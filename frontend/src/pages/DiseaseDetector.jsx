@@ -20,10 +20,10 @@ export default function DiseaseDetector() {
   // Ping backend on mount so TensorFlow loads before user submits
   useEffect(() => {
     let cancelled = false
+    let intervalId = null
     setWarming(true)
     wakeUp()
     // Poll until model-status confirms model is LOADED (loaded:true), not just server awake
-    // Model download from Google Drive can take 30-60s extra after server wakes
     const check = async () => {
       try {
         const res = await modelStatus()
@@ -33,27 +33,26 @@ export default function DiseaseDetector() {
             setModelLoaded(true)
             setServerReady(true)
             setWarming(false)
-            clearInterval(interval)
+            if (intervalId) clearInterval(intervalId)
           } else if (!res.data.loading) {
             // Server is up but model failed to load — stop waiting, allow heuristic
             setServerReady(true)
             setWarming(false)
-            clearInterval(interval)
+            if (intervalId) clearInterval(intervalId)
           } else {
-            // Server awake, model still downloading from Drive — show intermediate state
+            // Server awake, model still loading
             setServerReady(false)
             setWarming(true)
           }
-          // keep polling
         }
-      } catch {
-        // still waking — retry
+      } catch (err) {
+        console.error('Status check error:', err)
       }
     }
-    const interval = setInterval(check, 5000)
+    intervalId = setInterval(check, 3000)
     check() // immediate first check
-    const timeout = setTimeout(() => { if (!cancelled) { clearInterval(interval); setWarming(false) } }, 180000)
-    return () => { cancelled = true; clearInterval(interval); clearTimeout(timeout) }
+    const timeout = setTimeout(() => { if (!cancelled) { if (intervalId) clearInterval(intervalId); setWarming(false) } }, 180000)
+    return () => { cancelled = true; if (intervalId) clearInterval(intervalId); clearTimeout(timeout) }
   }, [])
 
   const handleFile = file => {
