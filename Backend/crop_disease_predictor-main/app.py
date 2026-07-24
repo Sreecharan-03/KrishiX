@@ -42,17 +42,47 @@ def _download_model_files():
 
     base = os.path.dirname(os.path.abspath(__file__))
 
-    # --- Folder-level download (downloads everything in the folder) ---
+    # --- Per-file download (direct file IDs via env vars — bypasses 401 folder API error) ---
+    file_targets = [
+        ('GDRIVE_MODEL_ID',        'crop_disease_model.h5'),
+        ('GDRIVE_CLASSES_ID',      'classes.pkl'),
+        ('GDRIVE_DISEASE_INFO_ID', 'disease_info.json'),
+    ]
+
+    any_file_downloaded = False
+    for env_var, filename in file_targets:
+        file_id = os.getenv(env_var, '').strip()
+        if not file_id:
+            continue
+        dest = os.path.join(base, filename)
+        if os.path.exists(dest):
+            print(f'[gdrive] {filename} already exists — skipping download.', flush=True)
+            continue
+        print(f'[gdrive] Downloading {filename} from Google Drive (id={file_id})...', flush=True)
+        try:
+            gdown.download(id=file_id, output=dest, quiet=False, fuzzy=True)
+            if os.path.exists(dest) and os.path.getsize(dest) > 0:
+                print(f'[gdrive] {filename} downloaded successfully ({os.path.getsize(dest)} bytes).', flush=True)
+                any_file_downloaded = True
+            else:
+                print(f'[gdrive] Warning: Downloaded {filename} is empty.', flush=True)
+        except Exception as e:
+            print(f'[gdrive] Failed to download {filename}: {e}', flush=True)
+
+    if any_file_downloaded or all(os.path.exists(os.path.join(base, fn)) for _, fn in file_targets):
+        return
+
+    # --- Folder-level fallback download ---
     folder_id = os.getenv('GDRIVE_FOLDER_ID', '').strip()
     if folder_id:
-        has_model = os.path.exists(os.path.join(base, 'crop_disease_model.tflite')) or os.path.exists(os.path.join(base, 'crop_disease_model.h5'))
+        has_model = os.path.exists(os.path.join(base, 'crop_disease_model.h5')) or os.path.exists(os.path.join(base, 'crop_disease_model.tflite'))
         has_classes = os.path.exists(os.path.join(base, 'classes.pkl')) or os.path.exists(os.path.join(base, 'class_names.pkl'))
         has_info = os.path.exists(os.path.join(base, 'disease_info.json'))
 
         if has_model and has_classes and has_info:
-            print('[gdrive] All model files already present — skipping folder download.', flush=True)
+            print('[gdrive] All model files present — skipping folder download.', flush=True)
         else:
-            print(f'[gdrive] Missing model files. Downloading folder {folder_id} from Google Drive...', flush=True)
+            print(f'[gdrive] Downloading folder {folder_id} from Google Drive...', flush=True)
             try:
                 gdown.download_folder(
                     id=folder_id,
@@ -63,41 +93,6 @@ def _download_model_files():
                 print('[gdrive] Folder download complete.', flush=True)
             except Exception as e:
                 print(f'[gdrive] Folder download failed: {e}', flush=True)
-        return  # folder path handled — don't fall through to per-file logic
-
-    # --- Per-file download (individual File IDs via env vars) ---
-    file_targets = [
-        ('GDRIVE_MODEL_ID',        ['crop_disease_model.tflite', 'crop_disease_model.h5']),
-        ('GDRIVE_CLASSES_ID',      ['classes.pkl']),
-        ('GDRIVE_DISEASE_INFO_ID', ['disease_info.json']),
-    ]
-
-    any_configured = False
-    for env_var, filenames in file_targets:
-        file_id = os.getenv(env_var, '').strip()
-        if not file_id:
-            continue
-        any_configured = True
-        target_name = filenames[0]
-        dest = os.path.join(base, target_name)
-        if any(os.path.exists(os.path.join(base, fn)) for fn in filenames):
-            print(f'[gdrive] {target_name} already exists — skipping download.', flush=True)
-            continue
-        url = f'https://drive.google.com/uc?id={file_id}'
-        print(f'[gdrive] Downloading {target_name} from Google Drive (id={file_id})...', flush=True)
-        try:
-            gdown.download(url, dest, quiet=False, fuzzy=True)
-            print(f'[gdrive] {target_name} downloaded successfully.', flush=True)
-        except Exception as e:
-            print(f'[gdrive] Failed to download {target_name}: {e}', flush=True)
-
-    if not any_configured:
-        print(
-            '[gdrive] No Google Drive IDs configured. '
-            'Set GDRIVE_FOLDER_ID or GDRIVE_MODEL_ID / GDRIVE_CLASSES_ID / '
-            'GDRIVE_DISEASE_INFO_ID env vars on Render to enable auto-download.',
-            flush=True
-        )
 
 # TFLite interpreter (set in background loader)
 TFLITE_INTERPRETER = None
