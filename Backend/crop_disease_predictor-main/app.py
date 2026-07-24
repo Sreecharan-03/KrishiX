@@ -853,8 +853,9 @@ def yield_predict():
 def model_status():
     return jsonify({
         'loading': MODEL_LOADING,
-        'loaded': MODEL_LOADED,
-        'ready': not MODEL_LOADING,
+        'loaded': MODEL_LOADED,           # True only when disease model is fully loaded
+        'ready': MODEL_LOADED,            # fixed: ready = model is actually usable
+        'disease_model_loaded': MODEL_LOADED,
         'classes': len(CLASS_NAMES) if MODEL_LOADED else 0,
         'total_diseases': len(CLASS_NAMES) if MODEL_LOADED else 0,
         'crop_model_loaded': CROP_MODEL is not None,

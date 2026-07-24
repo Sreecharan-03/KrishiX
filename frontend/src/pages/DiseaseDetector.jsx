@@ -13,6 +13,7 @@ export default function DiseaseDetector() {
   const [error, setError] = useState('')
   const [drag, setDrag] = useState(false)
   const [serverReady, setServerReady] = useState(false)
+  const [modelLoaded, setModelLoaded] = useState(false)
   const [warming, setWarming] = useState(true)
   const fileRef = useRef()
 
@@ -21,21 +22,37 @@ export default function DiseaseDetector() {
     let cancelled = false
     setWarming(true)
     wakeUp()
-    // Poll until model-status confirms server is ready (max 90s)
+    // Poll until model-status confirms model is LOADED (loaded:true), not just server awake
+    // Model download from Google Drive can take 30-60s extra after server wakes
     const check = async () => {
       try {
         const res = await modelStatus()
         if (!cancelled && res.data) {
-          setServerReady(true)
-          setWarming(false)
+          if (res.data.loaded === true) {
+            // Model fully loaded — predictions will use ml_model
+            setModelLoaded(true)
+            setServerReady(true)
+            setWarming(false)
+            clearInterval(interval)
+          } else if (!res.data.loading) {
+            // Server is up but model failed to load — stop waiting, allow heuristic
+            setServerReady(true)
+            setWarming(false)
+            clearInterval(interval)
+          } else {
+            // Server awake, model still downloading from Drive — show intermediate state
+            setServerReady(false)
+            setWarming(true)
+          }
+          // keep polling
         }
       } catch {
         // still waking — retry
       }
     }
-    const interval = setInterval(check, 8000)
+    const interval = setInterval(check, 5000)
     check() // immediate first check
-    const timeout = setTimeout(() => { clearInterval(interval); if (!cancelled) setWarming(false) }, 90000)
+    const timeout = setTimeout(() => { if (!cancelled) { clearInterval(interval); setWarming(false) } }, 180000)
     return () => { cancelled = true; clearInterval(interval); clearTimeout(timeout) }
   }, [])
 
@@ -87,13 +104,21 @@ export default function DiseaseDetector() {
         {warming && (
           <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 text-sm">
             <Loader2 size={16} className="animate-spin shrink-0" />
-            <span><strong>AI server is warming up</strong> — Render free tier sleeps after inactivity. It takes ~60 seconds to wake up. Please wait before analyzing.</span>
+            <span>
+              <strong>AI model is loading…</strong> — Downloading disease detection model. This takes ~60–90 seconds on first start. Please wait before analyzing.
+            </span>
           </div>
         )}
-        {!warming && serverReady && (
+        {!warming && serverReady && modelLoaded && (
           <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-sm">
             <Zap size={16} className="shrink-0" />
-            <span><strong>AI server is ready!</strong> You can now analyze your crop image.</span>
+            <span><strong>AI model is ready!</strong> You can now analyze your crop image with full accuracy.</span>
+          </div>
+        )}
+        {!warming && serverReady && !modelLoaded && (
+          <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/50 text-orange-700 dark:text-orange-400 text-sm">
+            <Zap size={16} className="shrink-0" />
+            <span><strong>Server ready (quick scan mode)</strong> — AI model unavailable. Results use a basic image analysis.</span>
           </div>
         )}
 
