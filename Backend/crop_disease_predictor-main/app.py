@@ -679,16 +679,20 @@ def api_predict():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        # Use ML model if loaded, otherwise instant PIL/numpy heuristic (no TF needed)
-        if MODEL_LOADED:
+        # If model is still loading in background, wait up to 30s for loader thread to finish
+        if not MODEL_LOADED and MODEL_LOADING and _loader_thread and _loader_thread.is_alive():
+            print('[api] Prediction request received while model is loading — waiting for loader thread...', flush=True)
+            _loader_thread.join(timeout=30.0)
+
+        # Use ML model if loaded
+        if MODEL_LOADED or MODEL is not None or TFLITE_INTERPRETER is not None:
             result = predict_disease(filepath)
             result['remedy'] = _remedy_for_disease(result.get('plant'), result.get('disease'))
             result['source'] = 'ml_model'
         else:
             result = _fallback_disease_prediction(filepath)
             result['source'] = 'heuristic'
-            if MODEL_LOADING:
-                result['note'] = 'AI model is still loading in background. This is a quick heuristic result.'
+            result['note'] = 'AI model is still initializing on server. Please try again shortly.'
 
         # Convert image to base64 for display
         with open(filepath, 'rb') as img_file:
