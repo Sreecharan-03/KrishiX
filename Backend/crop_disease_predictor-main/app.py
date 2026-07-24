@@ -96,8 +96,10 @@ def _download_model_files():
             'GDRIVE_DISEASE_INFO_ID env vars on Render to enable auto-download.'
         )
 
-# Keras/TF are imported lazily inside the background loader thread
-# so Flask can start and respond immediately on cold start
+# TFLite interpreter (set in background loader)
+TFLITE_INTERPRETER = None
+
+# Keras/TF are imported lazily and only used as fallback if no .tflite file
 KERAS_MODELS = None
 KERAS_PREPROCESSING = None
 
@@ -208,7 +210,7 @@ MODEL = None
 
 
 def _load_all_models():
-    global KERAS_MODELS, KERAS_PREPROCESSING
+    global KERAS_MODELS, KERAS_PREPROCESSING, TFLITE_INTERPRETER
     global CROP_MODEL, CROP_SCALER, YIELD_MODEL
     global MODEL, MODEL_LOADED, MODEL_LOADING, MODEL_LOADING_ERROR
     global CLASS_NAMES, DISEASE_INFO
@@ -219,23 +221,69 @@ def _load_all_models():
     _download_model_files()
     sys.stdout.flush()
 
-    # --- 1. Import TensorFlow/Keras (the slow part) ---
-    try:
+    # --- 1. Import TFLite runtime (lightweight — ~50MB RAM vs TF's 350MB) ---
+    # Try tflite-runtime first, fall back to tensorflow.lite
+    tflite_path = asset_path('crop_disease_model.tflite')
+    if os.path.exists(tflite_path):
         try:
-            import keras as standalone_keras
-            KERAS_MODELS = standalone_keras.models
-            KERAS_PREPROCESSING = standalone_keras.preprocessing
-            print('[loader] Using standalone keras')
-        except Exception:
-            from tensorflow import keras as tensorflow_keras
-            KERAS_MODELS = tensorflow_keras.models
-            KERAS_PREPROCESSING = tensorflow_keras.preprocessing
-            print('[loader] Using tensorflow.keras')
-    except Exception as e:
-        print(f'[loader] Keras import failed: {e}')
-        MODEL_LOADING_ERROR = str(e)
-        MODEL_LOADING = False
-        return
+            try:
+                import tflite_runtime.interpreter as tflite
+                print('[loader] Using tflite_runtime', flush=True)
+            except ImportError:
+                import tensorflow.lite as tflite
+                print('[loader] Using tensorflow.lite (tflite_runtime not installed)', flush=True)
+
+            TFLITE_INTERPRETER = tflite.Interpreter(model_path=tflite_path)
+            TFLITE_INTERPRETER.allocate_tensors()
+            print('[loader] TFLite interpreter ready', flush=True)
+
+            # Load class names
+            class_files = ['class_names.pkl', 'classes.pkl']
+            for cls_path in class_files:
+                candidate = asset_path(cls_path)
+                if os.path.exists(candidate):
+                    with open(candidate, 'rb') as f:
+                        CLASS_NAMES = pickle.load(f)
+                    print(f'[loader] Class names loaded: {len(CLASS_NAMES)} classes', flush=True)
+                    break
+            if not CLASS_NAMES:
+                raise FileNotFoundError('No class names file found')
+
+            # Load disease info
+            if os.path.exists(asset_path('disease_info.json')):
+                with open(asset_path('disease_info.json'), 'r') as f:
+                    DISEASE_INFO = json.load(f)
+            else:
+                DISEASE_INFO = _default_disease_info(CLASS_NAMES)
+
+            MODEL_LOADED = True
+            print('[loader] TFLite disease model loaded successfully ✓', flush=True)
+        except Exception as e:
+            print(f'[loader] TFLite load error: {e}', flush=True)
+            traceback.print_exc()
+            sys.stdout.flush()
+            # Fall through to Keras .h5 loading below
+    else:
+        print('[loader] No .tflite file found, falling back to Keras .h5...', flush=True)
+
+    # --- 1b. Fallback: Keras .h5 (only if TFLite failed or not found) ---
+    if not MODEL_LOADED:
+        try:
+            try:
+                import keras as standalone_keras
+                KERAS_MODELS = standalone_keras.models
+                KERAS_PREPROCESSING = standalone_keras.preprocessing
+                print('[loader] Using standalone keras')
+            except Exception:
+                from tensorflow import keras as tensorflow_keras
+                KERAS_MODELS = tensorflow_keras.models
+                KERAS_PREPROCESSING = tensorflow_keras.preprocessing
+                print('[loader] Using tensorflow.keras')
+        except Exception as e:
+            print(f'[loader] Keras import failed: {e}')
+            MODEL_LOADING_ERROR = str(e)
+            MODEL_LOADING = False
+            return
 
     # --- 2. Crop Recommendation Model (pickle - fast) ---
     try:
@@ -274,39 +322,40 @@ def _load_all_models():
     except Exception as e:
         print(f'[loader] Yield model error: {e}')
 
-    # --- 4. Disease Detection Model (Keras .h5 - slow) ---
-    model_path = asset_path('crop_disease_model.h5')
-    print(f'[loader] Disease model path: {model_path}', flush=True)
-    print(f'[loader] Model file exists: {os.path.exists(model_path)}', flush=True)
-    if os.path.exists(model_path):
-        print(f'[loader] Model file size: {os.path.getsize(model_path)} bytes', flush=True)
-    try:
-        print('[loader] Loading Keras model...', flush=True)
-        MODEL = KERAS_MODELS.load_model(model_path, compile=False)
-        print('[loader] Keras model loaded. Loading class names...', flush=True)
-        class_files = ['class_names.pkl', 'classes.pkl']
-        for cls_path in class_files:
-            candidate = asset_path(cls_path)
-            if os.path.exists(candidate):
-                with open(candidate, 'rb') as f:
-                    CLASS_NAMES = pickle.load(f)
-                print(f'[loader] Class names loaded from {cls_path}: {len(CLASS_NAMES)} classes', flush=True)
-                break
-        if not CLASS_NAMES:
-            raise FileNotFoundError('No class names file found')
-        if os.path.exists(asset_path('disease_info.json')):
-            with open(asset_path('disease_info.json'), 'r') as f:
-                DISEASE_INFO = json.load(f)
-        else:
-            DISEASE_INFO = _default_disease_info(CLASS_NAMES)
-        MODEL_LOADED = True
-        print('[loader] Disease model loaded successfully ✓', flush=True)
-    except Exception as e:
-        print(f'[loader] Disease model error: {e}', flush=True)
-        print('[loader] Full traceback:', flush=True)
-        traceback.print_exc()
-        sys.stdout.flush()
-        MODEL_LOADED = False
+    # --- 4. Disease Detection Model (Keras .h5 fallback) ---
+    if not MODEL_LOADED and KERAS_MODELS is not None:
+        model_path = asset_path('crop_disease_model.h5')
+        print(f'[loader] Disease model path: {model_path}', flush=True)
+        print(f'[loader] Model file exists: {os.path.exists(model_path)}', flush=True)
+        if os.path.exists(model_path):
+            print(f'[loader] Model file size: {os.path.getsize(model_path)} bytes', flush=True)
+        try:
+            print('[loader] Loading Keras model...', flush=True)
+            MODEL = KERAS_MODELS.load_model(model_path, compile=False)
+            print('[loader] Keras model loaded. Loading class names...', flush=True)
+            class_files = ['class_names.pkl', 'classes.pkl']
+            for cls_path in class_files:
+                candidate = asset_path(cls_path)
+                if os.path.exists(candidate):
+                    with open(candidate, 'rb') as f:
+                        CLASS_NAMES = pickle.load(f)
+                    print(f'[loader] Class names loaded from {cls_path}: {len(CLASS_NAMES)} classes', flush=True)
+                    break
+            if not CLASS_NAMES:
+                raise FileNotFoundError('No class names file found')
+            if os.path.exists(asset_path('disease_info.json')):
+                with open(asset_path('disease_info.json'), 'r') as f:
+                    DISEASE_INFO = json.load(f)
+            else:
+                DISEASE_INFO = _default_disease_info(CLASS_NAMES)
+            MODEL_LOADED = True
+            print('[loader] Disease model loaded successfully ✓', flush=True)
+        except Exception as e:
+            print(f'[loader] Disease model error: {e}', flush=True)
+            print('[loader] Full traceback:', flush=True)
+            traceback.print_exc()
+            sys.stdout.flush()
+            MODEL_LOADED = False
 
     MODEL_LOADING = False
     print('[loader] All models loaded. Server fully ready.', flush=True)
@@ -509,28 +558,44 @@ def allowed_file(filename):
 
 
 def predict_disease(image_path):
-    """Predict disease from image"""
-    img = KERAS_PREPROCESSING.image.load_img(image_path, target_size=(224, 224))
-    img_array = KERAS_PREPROCESSING.image.img_to_array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-    
-    predictions = MODEL.predict(img_array, verbose=0)
-    confidence = np.max(predictions) * 100
-    class_idx = np.argmax(predictions)
+    """Predict disease from image using TFLite interpreter (preferred) or Keras model."""
+    from PIL import Image as PILImage
+
+    # Preprocess image
+    img = PILImage.open(image_path).convert('RGB').resize((224, 224))
+    img_array = np.array(img, dtype=np.float32) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)  # shape: (1, 224, 224, 3)
+
+    if TFLITE_INTERPRETER is not None:
+        # --- TFLite inference (fast, low RAM) ---
+        input_details = TFLITE_INTERPRETER.get_input_details()
+        output_details = TFLITE_INTERPRETER.get_output_details()
+
+        TFLITE_INTERPRETER.set_tensor(input_details[0]['index'], img_array)
+        TFLITE_INTERPRETER.invoke()
+        predictions = TFLITE_INTERPRETER.get_tensor(output_details[0]['index'])  # shape: (1, num_classes)
+    elif MODEL is not None and KERAS_PREPROCESSING is not None:
+        # --- Keras fallback ---
+        predictions = MODEL.predict(img_array, verbose=0)
+    else:
+        raise RuntimeError('No model available for inference')
+
+    confidence = float(np.max(predictions) * 100)
+    class_idx = int(np.argmax(predictions))
     class_name = CLASS_NAMES[class_idx]
-    
+
     disease_data = DISEASE_INFO.get(class_name, {})
     plant = disease_data.get('plant', 'Unknown')
     disease = disease_data.get('disease', 'Unknown')
-    
+
     return {
         'class': class_name,
         'plant': plant,
         'disease': disease,
-        'confidence': float(confidence),
+        'confidence': confidence,
         'all_predictions': {
-            CLASS_NAMES[i]: float(pred * 100) 
-            for i, pred in enumerate(predictions[0])
+            CLASS_NAMES[i]: float(predictions[0][i] * 100)
+            for i in range(len(CLASS_NAMES))
         }
     }
 
