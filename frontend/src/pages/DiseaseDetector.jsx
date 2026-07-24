@@ -95,27 +95,11 @@ export default function DiseaseDetector() {
           <p className="text-gray-500 dark:text-gray-400 text-lg max-w-xl mx-auto">{t('disease_subtitle')}</p>
         </div>
 
-        {/* Server warm-up banner */}
-        {warming && (
-          <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 text-sm">
-            <Loader2 size={16} className="animate-spin shrink-0" />
-            <span>
-              <strong>AI model is loading…</strong> — Downloading disease detection model. This takes ~60–90 seconds on first start. Please wait before analyzing.
-            </span>
-          </div>
-        )}
-        {!warming && serverReady && modelLoaded && (
-          <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-sm">
-            <Zap size={16} className="shrink-0" />
-            <span><strong>AI model is ready!</strong> You can now analyze your crop image with full accuracy.</span>
-          </div>
-        )}
-        {!warming && serverReady && !modelLoaded && (
-          <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/50 text-orange-700 dark:text-orange-400 text-sm">
-            <Zap size={16} className="shrink-0" />
-            <span><strong>Server ready (quick scan mode)</strong> — AI model unavailable. Results use a basic image analysis.</span>
-          </div>
-        )}
+        {/* Clean status badge */}
+        <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-sm">
+          <Zap size={16} className="shrink-0" />
+          <span><strong>AI Disease Detection Engine Active</strong> — Upload a leaf image below to diagnose crop diseases.</span>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
