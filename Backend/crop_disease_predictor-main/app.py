@@ -60,7 +60,7 @@ def _download_model_files():
             continue
         print(f'[gdrive] Downloading {filename} from Google Drive (id={file_id})...', flush=True)
         try:
-            gdown.download(id=file_id, output=dest, quiet=False, fuzzy=True)
+            gdown.download(id=file_id, output=dest, quiet=False)
             if os.path.exists(dest) and os.path.getsize(dest) > 0:
                 print(f'[gdrive] {filename} downloaded successfully ({os.path.getsize(dest)} bytes).', flush=True)
                 any_file_downloaded = True
