@@ -27,22 +27,18 @@ export default function DiseaseDetector() {
     const check = async () => {
       try {
         const res = await modelStatus()
-        if (!cancelled && res.data) {
-          if (res.data.loaded === true) {
-            // Model fully loaded — predictions will use ml_model
+        const data = res?.data
+        if (!cancelled && data) {
+          const isLoaded = Boolean(data.loaded || data.ready || data.disease_model_loaded)
+          if (isLoaded) {
             setModelLoaded(true)
             setServerReady(true)
             setWarming(false)
             if (intervalId) clearInterval(intervalId)
-          } else if (!res.data.loading) {
-            // Server is up but model failed to load — stop waiting, allow heuristic
+          } else if (data.loading === false) {
             setServerReady(true)
             setWarming(false)
             if (intervalId) clearInterval(intervalId)
-          } else {
-            // Server awake, model still loading
-            setServerReady(false)
-            setWarming(true)
           }
         }
       } catch (err) {
