@@ -12,31 +12,31 @@ export default function DiseaseDetector() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [drag, setDrag] = useState(false)
-  const [serverReady, setServerReady] = useState(false)
-  const [modelLoaded, setModelLoaded] = useState(false)
-  const [warming, setWarming] = useState(true)
+  const [serverReady, setServerReady] = useState(true)
+  const [modelLoaded, setModelLoaded] = useState(true)
+  const [warming, setWarming] = useState(false)
   const fileRef = useRef()
 
   // Ping backend on mount so TensorFlow loads before user submits
   useEffect(() => {
     let cancelled = false
     let intervalId = null
-    setWarming(true)
     wakeUp()
-    // Poll until model-status confirms model is LOADED (loaded:true), not just server awake
+    // Poll until model-status confirms model is LOADED
     const check = async () => {
       try {
         const res = await modelStatus()
         const data = res?.data
         if (!cancelled && data) {
           const isLoaded = Boolean(data.loaded || data.ready || data.disease_model_loaded)
+          setServerReady(true)
           if (isLoaded) {
             setModelLoaded(true)
-            setServerReady(true)
             setWarming(false)
             if (intervalId) clearInterval(intervalId)
+          } else if (data.loading === true) {
+            setWarming(true)
           } else if (data.loading === false) {
-            setServerReady(true)
             setWarming(false)
             if (intervalId) clearInterval(intervalId)
           }
@@ -47,7 +47,7 @@ export default function DiseaseDetector() {
     }
     intervalId = setInterval(check, 3000)
     check() // immediate first check
-    const timeout = setTimeout(() => { if (!cancelled) { if (intervalId) clearInterval(intervalId); setWarming(false) } }, 180000)
+    const timeout = setTimeout(() => { if (!cancelled) { if (intervalId) clearInterval(intervalId); setWarming(false) } }, 30000)
     return () => { cancelled = true; if (intervalId) clearInterval(intervalId); clearTimeout(timeout) }
   }, [])
 
@@ -165,14 +165,11 @@ export default function DiseaseDetector() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={loading || warming}
-                  title={warming ? 'Please wait — AI model is still loading on the server' : ''}
+                  disabled={loading}
                   className="flex-[2] py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-rose-500/30 hover:shadow-rose-500/50 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all"
                 >
                   {loading
                     ? <><Loader2 size={15} className="animate-spin" /> {t('loading')}</>
-                    : warming
-                    ? <><Loader2 size={15} className="animate-spin" /> AI model loading…</>
                     : <>{t('disease_btn')}</>}
                 </button>
               </div>
@@ -181,11 +178,10 @@ export default function DiseaseDetector() {
             {!preview && (
               <button
                 onClick={() => fileRef.current?.click()}
-                disabled={warming}
-                title={warming ? 'Please wait — AI model is still loading on the server' : ''}
+                disabled={loading}
                 className="mt-4 w-full py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-bold text-sm shadow-lg shadow-rose-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all"
               >
-                {warming ? <span className="flex items-center justify-center gap-2"><Loader2 size={15} className="animate-spin" /> AI model loading…</span> : t('disease_btn')}
+                {t('disease_btn')}
               </button>
             )}   
 
