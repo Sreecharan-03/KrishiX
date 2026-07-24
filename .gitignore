@@ -42,6 +42,7 @@ logs/
 # Mindsprint has its own .git - treat as submodule or ignore nested .git
 Mindsprint/.git/
 
-# Large model files — keep out of git (use TFLite or Drive instead)
+# Large model files — keep out of git (use Drive instead)
 Backend/crop_disease_predictor-main/crop_disease_model.h5
+Backend/crop_disease_predictor-main/crop_disease_model.tflite
 Backend/crop\ recommendation/ensemble_crop_model\ (1).pkl
